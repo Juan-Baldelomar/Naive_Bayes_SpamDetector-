@@ -22,12 +22,9 @@ int parseLine(string line, vector<int>&container){
 }
 
 // tools to print data
-ostream &operator<<(ostream &os, const vector< vector<int> > &M)
-{
-    for(int i = 0; i < M.size(); i++)
-    {
-        for(auto x:M[i])
-        {
+ostream &operator<<(ostream &os, const vector< vector<int> > &M){
+    for(int i = 0; i < M.size(); i++){
+        for(auto x:M[i]){
             os << setw(12) << x << setw(12);
         }
         os <<endl;
@@ -35,8 +32,7 @@ ostream &operator<<(ostream &os, const vector< vector<int> > &M)
     return os;
 }
 
-ostream &operator<<(ostream &os, const vector<int> &V)
-{
+ostream &operator<<(ostream &os, const vector<int> &V){
     for(auto x:V)
         os << x << " ";
     os <<endl;
@@ -48,14 +44,14 @@ TextClassifier::TextClassifier(string trainingPath) {
     ifstream file(trainingPath);
     string line, token;
 
-    if (!file.is_open()){
+    if (!file.is_open()) {
         cout << "ERROR OPENING FILE" << endl;
         return;
     }
 
     // count lines
     int counter = 0, nLines = 0;
-    while(getline(file, line))
+    while (getline(file, line))
         nLines++;
 
     // reopen file to reset pointer
@@ -63,29 +59,58 @@ TextClassifier::TextClassifier(string trainingPath) {
     file.open(trainingPath);
 
     //read headers
-    if (file.good()){
+    if (file.good()) {
         getline(file, line);
         stringstream lineStream(line);
     }
 
     // read training data
-    while(getline(file, line) && counter++<nLines/2){
+    while (getline(file, line)) {
         vector<int> row;
         parseLine(line, row);
         trainingData.push_back(row);
     }
 
-    // read test data
-    while(getline(file, line)){
-        vector<int> row;
-        parseLine(line, row);
-        testData.push_back(row);
+    // split data into test and training data
+    int spamCount = 0;
+    int notSpamCount = 0;
+    int spamColumn = trainingData[0].size();
+
+    // count spam
+    for (int i = 0; i < trainingData.size(); i++){
+        if (trainingData[i][spamColumn - 1] == 1)
+            spamCount++;
+    }
+    notSpamCount = trainingData.size()-spamCount;
+
+    // 30% of spam  and not spam used for testing
+    int testSpamCount = 0.3* spamCount;
+    int testNotSpamCount = 0.3*notSpamCount;
+
+    // remove data from training and insert it to test
+    for (int i = 0, count=0; count<testSpamCount; i++){
+        vector<int> tmpRow = trainingData[i];
+        if (tmpRow[spamColumn-1] == 1){
+            testData.push_back(tmpRow);
+            trainingData.erase(trainingData.begin()+i);
+            i--;                                                                //decrease pointer position because row was removed
+            count++;                                                            //increase counter of testData inserted
+        }
+    }
+
+    for (int i = 0, count=0; count<testNotSpamCount; i++){
+        vector<int> tmpRow = trainingData[i];
+        if (tmpRow[spamColumn-1] == 0){
+            testData.push_back(tmpRow);
+            trainingData.erase(trainingData.begin()+i);
+            i--;                                                                //decrease pointer position because row was removed
+            count++;                                                            //increase counter of testData inserted
+        }
     }
 
     file.close();
 
-    // transformData
-    //transformData(0);
+    // transform testData
     transformData(1);
 
     // asign atribute values
@@ -96,7 +121,7 @@ TextClassifier::TextClassifier(string trainingPath) {
     P_X = 0;
     P_NX = 0;
 
-    // start training
+    // start training and prediction
     startTraining();
     predict();
     showPrediction();
@@ -142,7 +167,6 @@ TextClassifier::TextClassifier(string trainingPath, string testPath) {
     }
     file.close();
     // transformData
-    transformData(0);
     transformData(1);
 
     // asign atribute values
@@ -153,7 +177,7 @@ TextClassifier::TextClassifier(string trainingPath, string testPath) {
     P_X = 0;
     P_NX = 0;
 
-    // start training
+    // start training and prediction
     startTraining();
     predict();
     showPrediction();
@@ -217,12 +241,21 @@ void TextClassifier::startTraining() {
     int n = trainingData.size();
     int m = trainingData[0].size();
 
-    // count spam and not spam
-    for (int i = 0; i<n; i++){
-        if (trainingData[i][m-1] == 1)
-            P_X++;
-        else
-            P_NX++;
+    // count spam and not spam words
+    for (int j = 0; j<m-1; j++){
+        int spamCountCurrentWord = 0;
+        int notSpamCountCurrentWord = 0;
+        for (int i = 0; i<n; i++){
+            if (trainingData[i][m-1] == 1)
+                spamCountCurrentWord += trainingData[i][j];         //count spam words
+            else
+                notSpamCountCurrentWord += trainingData[i][j];      //count not spam words
+        }
+        // if there is no word in intersection of both, ignore them
+        if (spamCountCurrentWord > 0 && notSpamCountCurrentWord > 0){
+            P_X+= spamCountCurrentWord;
+            P_NX+= notSpamCountCurrentWord;
+        }
     }
 
     // # times word is in spam and is not in spam
@@ -237,6 +270,7 @@ void TextClassifier::startTraining() {
 
     // P(Y[i]|X)
     for (int j = 0; j<m-1; j++){
+        // if intersection is not null
         if (P_Y_X[j] > 0 && P_Y_NX[j] > 0){
             P_Y_X[j] /= P_X;
             P_Y_NX[j] /= P_NX;
@@ -254,18 +288,21 @@ void TextClassifier::predict() {
     double p_x = (P_X*1.00) / training_size;
     double p_nx = (P_NX*1.00) / training_size;
 
+    // performo prediction for every element of testData
     for (int i = 0; i<n; i++){
-        double spamProd = 1;
-        double notSpamProd = 1;
+        double spamProd = 0;
+        double notSpamProd = 0;
+        // calculate with Naives
         for (int j = 0; j<m-1; j++){
             if (testData[i][j] == 1){
                 if (P_Y_X[j]!=0){
-                    spamProd*= P_Y_X[j];
-                    notSpamProd*= P_Y_NX[j];
+                    spamProd+= log(P_Y_X[j]);                   // formula modified to use log(x_1*x_2...) = log(x_1) + log(x_2) + ... for stability reasons
+                    notSpamProd+= log(P_Y_NX[j]);
                 }
             }
         }
-        if (p_x * spamProd > p_nx * notSpamProd)
+        // determine class of testVector
+        if (log(p_x) + spamProd > log(p_nx) + notSpamProd)
             spam[i] = 1;
         else
             spam[i] = 0;
