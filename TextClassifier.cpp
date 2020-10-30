@@ -230,7 +230,9 @@ void TextClassifier::transformData(int code) {
         data = &testData;
 
     int n = (*data).size();
-    int m = (*data)[0].size();
+    int m = 0;
+    if (n!= 0)                              //verify there is at least a row
+        m = (*data)[0].size();
 
     for (int i = 0; i<n; i++)
         for (int j = 0; j<m-1; j++)
@@ -239,7 +241,10 @@ void TextClassifier::transformData(int code) {
 
 void TextClassifier::startTraining() {
     int n = trainingData.size();
-    int m = trainingData[0].size();
+    int m = 0;
+
+    if (n!=0)
+        m = trainingData[0].size();
 
     // count spam and not spam words
     for (int j = 0; j<m-1; j++){
@@ -284,7 +289,11 @@ void TextClassifier::startTraining() {
 void TextClassifier::predict() {
     int training_size = trainingData.size();
     int n = testData.size();
-    int m = testData[0].size();
+    int m = 0;
+
+    if (n!=0)
+        m = testData[0].size();
+
     double p_x = (P_X*1.00) / training_size;
     double p_nx = (P_NX*1.00) / training_size;
 
@@ -330,9 +339,12 @@ void TextClassifier::predict() {
 
 void TextClassifier::showPrediction() {
     int n = testData.size();
-    int m = testData[0].size();
-    cout << setprecision(10);
+    int m = 0;
 
+    if (n!=0)
+        m= testData[0].size();
+
+    cout << setprecision(10);
     cout << "CONFUSION MATRIX: " << endl;
     cout << setw(5) << confusionMatrix[0][0] << setw(5) << confusionMatrix[0][1] << "\n" << setw(5) << confusionMatrix[1][0] << setw(5) << confusionMatrix[1][1] <<endl;
     cout << "accuracy: " <<  accuracy <<endl;
